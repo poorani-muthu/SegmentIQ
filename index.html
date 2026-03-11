@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Customer Segmentation Dashboard — Poorani M</title>
+<script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+<style>
+/* ══ CUSTOM CURSOR ══ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; cursor: none !important; }
+#cursor-dot  { width:8px;  height:8px;  background:var(--accent); border-radius:50%; position:fixed; pointer-events:none; z-index:99999; transform:translate(-50%,-50%); transition:transform .12s,background .2s; }
+#cursor-ring { width:32px; height:32px; border:1.5px solid var(--accent); border-radius:50%; position:fixed; pointer-events:none; z-index:99998; transform:translate(-50%,-50%); transition:width .2s,height .2s,opacity .2s; opacity:.55; }
+body.cur-hover #cursor-dot  { transform:translate(-50%,-50%) scale(2); }
+body.cur-hover #cursor-ring { width:48px; height:48px; opacity:.25; }
+
+/* ══ THEME TOKENS ══ */
+:root[data-theme="dark"] {
+  --bg:#070b14; --bg2:#0d1320; --bg3:#111827; --border:#1e2d45;
+  --text:#e2e8f0; --text2:#cbd5e1; --muted:#64748b; --muted2:#475569;
+  --accent:#3b82f6; --accent2:#60a5fa; --green:#22c55e; --yellow:#f59e0b;
+  --purple:#a78bfa; --red:#ef4444; --teal:#14b8a6;
+  --hero-bg:linear-gradient(135deg,#0d1a33 0%,#0d1320 60%,#130d1a 100%);
+  --nav-bg:rgba(7,11,20,0.95); --card-hover:rgba(59,130,246,.04); --shadow:rgba(0,0,0,.5);
+  --plot-grid:#1e2d45; --plot-font:#94a3b8;
+}
+:root[data-theme="light"] {
+  --bg:#f1f5f9; --bg2:#ffffff; --bg3:#f8fafc; --border:#e2e8f0;
+  --text:#0f172a; --text2:#1e293b; --muted:#64748b; --muted2:#94a3b8;
+  --accent:#2563eb; --accent2:#3b82f6; --green:#16a34a; --yellow:#d97706;
+  --purple:#7c3aed; --red:#dc2626; --teal:#0d9488;
+  --hero-bg:linear-gradient(135deg,#dbeafe 0%,#ede9fe 60%,#fce7f3 100%);
+  --nav-bg:rgba(241,245,249,0.95); --card-hover:rgba(37,99,235,.04); --shadow:rgba(0,0,0,.1);
+  --plot-grid:#e2e8f0; --plot-font:#64748b;
+}
+html { scroll-behavior:smooth; }
+body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; font-size:14px; line-height:1.6; transition:background .3s,color .3s; }
+
+/* ══ LOADER ══ */
+#loader { position:fixed; inset:0; background:var(--bg); z-index:9999; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:20px; }
+.loader-ring { width:52px; height:52px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .9s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.loader-text { color:var(--muted); font-size:12px; letter-spacing:3px; text-transform:uppercase; font-family:monospace; }
+
+/* ══ NAV ══ */
+nav { position:sticky; top:0; z-index:100; background:var(--nav-bg); backdrop-filter:blur(14px); border-bottom:1px solid var(--border); padding:0 24px; height:60px; display:flex; align-items:center; justify-content:space-between; transition:background .3s; }
+.nav-brand { display:flex; align-items:center; gap:10px; }
+.nav-brand-icon { width:32px; height:32px; background:linear-gradient(135deg,#3b82f6,#8b5cf6); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.nav-brand-name { font-weight:700; font-size:15px; color:var(--text); }
+.nav-brand-sub  { font-size:11px; color:var(--muted); font-family:monospace; }
+.nav-right { display:flex; align-items:center; gap:6px; }
+.nav-links { display:flex; gap:2px; }
+.nav-link { padding:6px 12px; border-radius:6px; font-size:12px; color:var(--muted); transition:all .2s; border:none; background:none; font-family:inherit; }
+.nav-link:hover,.nav-link.active { color:var(--text); background:var(--bg3); }
+.theme-btn { width:36px; height:36px; border-radius:8px; border:1px solid var(--border); background:var(--bg3); display:flex; align-items:center; justify-content:center; font-size:16px; margin-left:8px; transition:all .2s; }
+.theme-btn:hover { border-color:var(--accent); }
+
+/* ══ LAYOUT ══ */
+.page { display:none; padding:28px 32px; max-width:1400px; margin:0 auto; animation:fadeIn .3s ease; }
+.page.active { display:block; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+
+/* ══ HERO ══ */
+.hero { background:var(--hero-bg); border:1px solid var(--border); border-radius:20px; padding:40px 44px; margin-bottom:24px; position:relative; overflow:hidden; transition:background .3s; }
+.hero::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 80% 50%,rgba(59,130,246,.07) 0%,transparent 55%),radial-gradient(ellipse at 20% 80%,rgba(139,92,246,.05) 0%,transparent 50%); pointer-events:none; }
+.hero-tag { font-size:11px; font-family:monospace; letter-spacing:3px; color:var(--accent); text-transform:uppercase; margin-bottom:10px; }
+.hero h1  { font-size:clamp(26px,4vw,42px); font-weight:800; line-height:1.2; color:var(--text); margin-bottom:10px; }
+.hero h1 span { color:var(--accent); }
+.hero-sub { color:var(--muted); font-size:15px; max-width:600px; line-height:1.75; margin-bottom:22px; }
+.hero-pills { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; }
+.pill { padding:4px 13px; border-radius:20px; font-size:12px; font-family:monospace; border:1px solid; }
+.pill-blue   { background:rgba(59,130,246,.1);  border-color:rgba(59,130,246,.3);  color:var(--accent2); }
+.pill-purple { background:rgba(139,92,246,.1);  border-color:rgba(139,92,246,.3);  color:var(--purple); }
+.pill-green  { background:rgba(34,197,94,.1);   border-color:rgba(34,197,94,.3);   color:var(--green); }
+.pill-yellow { background:rgba(245,158,11,.1);  border-color:rgba(245,158,11,.3);  color:var(--yellow); }
+.data-info-title { font-size:11px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:2px; font-family:monospace; margin-bottom:10px; }
+.data-info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+.di-card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:14px 16px; display:flex; gap:10px; align-items:flex-start; transition:border-color .2s,transform .2s; }
+.di-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.di-icon  { font-size:18px; flex-shrink:0; margin-top:2px; }
+.di-label { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-family:monospace; margin-bottom:2px; }
+.di-val   { font-size:13px; font-weight:700; color:var(--text); line-height:1.3; }
+.di-sub   { font-size:11px; color:var(--muted); margin-top:2px; line-height:1.4; }
+
+/* ══ KPI STRIP ══ */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:24px; }
+.kpi { background:var(--bg2); border:1px solid var(--border); border-radius:14px; padding:16px 18px; position:relative; overflow:hidden; transition:border-color .2s,transform .2s; }
+.kpi:hover { border-color:var(--accent); transform:translateY(-2px); }
+.kpi-label { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-family:monospace; margin-bottom:6px; }
+.kpi-value { font-size:22px; font-weight:800; color:var(--text); line-height:1; }
+.kpi-sub   { font-size:11px; color:var(--muted); margin-top:4px; }
+.kpi-accent { position:absolute; bottom:0; left:0; right:0; height:3px; border-radius:0 0 14px 14px; }
+
+/* ══ SECTION HEADER ══ */
+.section-header { margin-bottom:20px; }
+.section-tag   { font-size:10px; font-family:monospace; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:4px; }
+.section-title { font-size:20px; font-weight:700; color:var(--text); }
+.section-desc  { font-size:13px; color:var(--muted); margin-top:4px; }
+
+/* ══ CHART CARDS ══ */
+.chart-card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:22px 24px; margin-bottom:20px; transition:background .3s,border-color .3s; }
+.chart-card h3 { font-size:15px; font-weight:600; color:var(--text); margin-bottom:3px; }
+.chart-card p  { font-size:12px; color:var(--muted); margin-bottom:12px; line-height:1.6; }
+.chart-grid-2  { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
+
+/* ══ TABS ══ */
+.tab-row { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+.tab-btn { padding:5px 14px; border-radius:20px; font-size:12px; font-family:monospace; border:1px solid var(--border); background:none; color:var(--muted); transition:all .2s; }
+.tab-btn.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+/* ══ SEGMENT CARDS ══ */
+.seg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(285px,1fr)); gap:14px; margin-bottom:24px; }
+.seg-card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:20px; transition:all .25s; position:relative; overflow:hidden; }
+.seg-card:hover { transform:translateY(-3px); box-shadow:0 12px 36px var(--shadow); }
+.seg-top { display:flex; align-items:center; gap:12px; margin-bottom:13px; }
+.seg-emoji { font-size:26px; }
+.seg-name  { font-size:15px; font-weight:700; color:var(--text); }
+.seg-badge { font-size:10px; font-family:monospace; padding:2px 8px; border-radius:10px; }
+.seg-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:7px; margin-bottom:12px; }
+.seg-stat  { background:var(--bg3); border-radius:8px; padding:8px 10px; }
+.seg-stat-lbl { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+.seg-stat-val { font-size:14px; font-weight:700; }
+.seg-bar  { display:flex; align-items:center; gap:10px; margin-bottom:5px; }
+.seg-bar-lbl   { font-size:11px; color:var(--muted); width:76px; flex-shrink:0; }
+.seg-bar-track { flex:1; height:5px; background:var(--bg3); border-radius:3px; overflow:hidden; }
+.seg-bar-fill  { height:100%; border-radius:3px; transition:width 1.2s cubic-bezier(.4,0,.2,1); }
+.seg-bar-val   { font-size:11px; color:var(--muted); width:34px; text-align:right; }
+.seg-desc  { font-size:12px; color:var(--muted); line-height:1.6; margin-top:9px; }
+.seg-stripe{ position:absolute; top:0; left:0; right:0; height:4px; border-radius:16px 16px 0 0; }
+
+/* ══ TABLE ══ */
+.table-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:10px 14px; color:var(--muted); font-size:11px; font-family:monospace; letter-spacing:1px; text-transform:uppercase; border-bottom:1px solid var(--border); font-weight:400; }
+td { padding:10px 14px; border-bottom:1px solid var(--border); color:var(--text); }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:var(--card-hover); }
+.badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-family:monospace; }
+
+/* ══ RECS ══ */
+.rec-grid { display:grid; gap:16px; }
+.rec-card { background:var(--bg2); border:1px solid var(--border); border-radius:16px; padding:22px 24px; transition:background .3s; }
+.rec-hdr  { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+.rec-title{ font-size:16px; font-weight:700; }
+.rec-risk { font-size:11px; font-family:monospace; padding:2px 8px; border-radius:8px; }
+.action-list { list-style:none; display:flex; flex-direction:column; gap:7px; }
+.action-list li { display:flex; gap:10px; align-items:flex-start; font-size:13px; color:var(--text2); }
+
+/* ══ EXEC ══ */
+.exec-card { background:var(--bg2); border:1px solid var(--border); border-radius:20px; padding:30px; margin-bottom:20px; transition:background .3s; }
+.exec-card h2 { font-size:21px; font-weight:800; color:var(--text); margin-bottom:5px; }
+.exec-tag { font-size:12px; color:var(--muted); font-family:monospace; letter-spacing:1px; margin-bottom:22px; }
+.exec-findings { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+.exec-finding  { background:var(--bg3); border:1px solid var(--border); border-radius:12px; padding:16px; }
+.exec-num  { font-size:30px; font-weight:900; line-height:1; margin-bottom:4px; }
+.exec-text { font-size:13px; color:var(--muted); line-height:1.5; }
+.exec-sec  { margin-top:20px; }
+.exec-sec h3 { font-size:12px; font-weight:600; color:var(--accent2); margin-bottom:8px; text-transform:uppercase; letter-spacing:1.5px; font-family:monospace; }
+.exec-sec p  { font-size:14px; color:var(--muted); line-height:1.8; }
+.pri-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin-top:10px; }
+.pri-item { background:var(--bg3); border-radius:10px; padding:14px; border-left:3px solid; }
+.pri-item h4 { font-size:13px; font-weight:600; margin-bottom:4px; }
+.pri-item p  { font-size:12px; color:var(--muted); line-height:1.5; }
+
+/* ══ METHODOLOGY ══ */
+.method-steps { display:grid; gap:10px; }
+.method-step  { display:flex; gap:14px; align-items:flex-start; background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:16px 18px; transition:background .3s; }
+.step-num  { width:30px; height:30px; border-radius:50%; background:var(--accent); color:#fff; font-weight:700; font-size:13px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.step-body h4 { font-size:14px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.step-body p  { font-size:13px; color:var(--muted); line-height:1.6; }
+.step-badge   { font-size:10px; font-family:monospace; padding:2px 8px; border-radius:6px; background:rgba(59,130,246,.12); color:var(--accent2); border:1px solid rgba(59,130,246,.25); margin-left:8px; }
+
+@media(max-width:900px){ .chart-grid-2{grid-template-columns:1fr} .nav-links{display:none} .page{padding:16px} }
+</style>
+</head>
+<body>
+
+<div id="cursor-dot"></div>
+<div id="cursor-ring"></div>
+<div id="loader"><div class="loader-ring"></div><div class="loader-text">Loading Analysis</div></div>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-brand-icon">📊</div>
+    <div>
+      <div class="nav-brand-name">SegmentIQ</div>
+      <div class="nav-brand-sub">Customer Analytics · Poorani M</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="nav-links">
+      <button class="nav-link active"  onclick="showPage('overview',this)">Overview</button>
+      <button class="nav-link" onclick="showPage('cleaning',this)">Data Cleaning</button>
+      <button class="nav-link" onclick="showPage('segments',this)">Segments</button>
+      <button class="nav-link" onclick="showPage('clusters',this)">Cluster Analysis</button>
+      <button class="nav-link" onclick="showPage('recommendations',this)">Strategy</button>
+      <button class="nav-link" onclick="showPage('exec',this)">Executive Summary</button>
+      <button class="nav-link" onclick="showPage('methodology',this)">Methodology</button>
+    </div>
+    <div class="theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode" id="theme-btn">🌙</div>
+  </div>
+</nav>
+
+<!-- ══ OVERVIEW ══ -->
+<div class="page active" id="page-overview">
+  <div class="hero">
+    <div class="hero-tag">Project by Poorani M</div>
+    <h1>Customer <span>Segmentation</span><br/>& BI Analysis</h1>
+    <div class="hero-sub">End-to-end RFM segmentation on 4,000+ customers across 97K+ transactions. Identifies which segments drive revenue, which need intervention, and what to do about it.</div>
+    <div class="hero-pills">
+      <span class="pill pill-blue">Python · Pandas</span>
+      <span class="pill pill-purple">K-Means · PCA</span>
+      <span class="pill pill-green">RFM Analysis</span>
+      <span class="pill pill-yellow">Actionable Strategy</span>
+      <span class="pill pill-blue">Flask · Plotly.js</span>
+    </div>
+    <div class="data-info-title">About the Dataset</div>
+    <div class="data-info-grid" id="data-info-grid"></div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <h3>Revenue by Customer Segment</h3>
+      <p>Total revenue contribution per segment — Champions and Loyal Customers dominate despite being fewer in number.</p>
+      <div id="chart-rev-seg" style="height:300px"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Customer Distribution by Segment</h3>
+      <p>How customers spread across all six segments — Hibernating is the largest group and a major re-engagement opportunity.</p>
+      <div id="chart-cust-dist" style="height:300px"></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>Monthly Revenue Trend</h3>
+    <p>Full 12-month revenue trajectory — all data shown at once. Reveals Q4 seasonal peak critical for campaign timing.</p>
+    <div id="chart-monthly" style="height:270px"></div>
+  </div>
+
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <h3>Revenue vs Customer Share — Pareto Analysis</h3>
+      <p>Bars show each segment's revenue share (left axis). Orange line = cumulative revenue % as segments are added from highest to lowest value. The Pareto principle in action.</p>
+      <div id="chart-pareto" style="height:320px"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Revenue by Country (Top 10)</h3>
+      <p>Geographic revenue concentration — UK dominates at 85% but international markets present a clear growth opportunity.</p>
+      <div id="chart-country" style="height:320px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DATA CLEANING ══ -->
+<div class="page" id="page-cleaning">
+  <div class="section-header">
+    <div class="section-tag">Step 1 of 7</div>
+    <div class="section-title">Data Cleaning Pipeline</div>
+    <div class="section-desc">Raw data is never analysis-ready. Every decision documented with row counts and rationale.</div>
+  </div>
+  <div class="chart-grid-2" style="margin-bottom:20px">
+    <div class="chart-card">
+      <h3>Data Quality Funnel</h3>
+      <p>Rows surviving each cleaning step — full transparency in data preparation.</p>
+      <div id="chart-funnel" style="height:320px"></div>
+    </div>
+    <div class="chart-card">
+      <h3>RFM Feature Distributions</h3>
+      <p>Separate histogram for each RFM dimension. All three show strong right skew — justifying log1p transformation before K-Means clustering.</p>
+      <div class="tab-row">
+        <button class="tab-btn active" onclick="switchDist('Recency',this)">Recency</button>
+        <button class="tab-btn" onclick="switchDist('Frequency',this)">Frequency</button>
+        <button class="tab-btn" onclick="switchDist('Monetary',this)">Monetary</button>
+      </div>
+      <div id="chart-rfm-dist" style="height:260px"></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>Cleaning Audit Log</h3>
+    <p>Every step, every row count, every reason — reproducible and defensible.</p>
+    <div class="table-wrap" id="cleaning-table"></div>
+  </div>
+  <div class="chart-card" style="margin-top:20px">
+    <h3>RFM Correlation Matrix</h3>
+    <p>Pearson correlation between RFM features at the customer level. Note: high Frequency and Monetary are naturally correlated. Recency (days) is inversely related to engagement — lower days = more recent = better.</p>
+    <div id="chart-corr" style="height:340px"></div>
+  </div>
+</div>
+
+<!-- ══ SEGMENTS ══ -->
+<div class="page" id="page-segments">
+  <div class="section-header">
+    <div class="section-tag">Step 5 of 7</div>
+    <div class="section-title">Customer Segments</div>
+    <div class="section-desc">Six behavioural segments identified through RFM quartile scoring.</div>
+  </div>
+  <div class="seg-grid" id="seg-grid"></div>
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <h3>Segment Radar — Normalised RFM Profile</h3>
+      <p>Scores normalised to 0–100 per dimension. Recency score is inverted (lower days = higher score). Higher = better on all axes.</p>
+      <div id="chart-radar" style="height:380px"></div>
+    </div>
+    <div class="chart-card">
+      <h3>RFM Scatter — Recency vs Monetary</h3>
+      <p>Each dot is a customer coloured by segment. Reveals natural separation in the RFM space.</p>
+      <div id="chart-scatter2d" style="height:380px"></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>RFM Box Plots by Segment</h3>
+    <p>Full distribution of each metric within every segment. Box = IQR, whiskers = 1.5×IQR, dots = outliers, cross = mean. Switch metrics using the tabs below.</p>
+    <div class="tab-row">
+      <button class="tab-btn active" onclick="switchBox('Recency',this)">Recency (days)</button>
+      <button class="tab-btn" onclick="switchBox('Frequency',this)">Frequency (orders)</button>
+      <button class="tab-btn" onclick="switchBox('Monetary',this)">Monetary (£)</button>
+    </div>
+    <div id="chart-box" style="height:360px"></div>
+  </div>
+</div>
+
+<!-- ══ CLUSTERS ══ -->
+<div class="page" id="page-clusters">
+  <div class="section-header">
+    <div class="section-tag">Step 3–4 of 7</div>
+    <div class="section-title">Cluster Analysis</div>
+    <div class="section-desc">Optimal K selection via Silhouette + Elbow, then PCA for visualisation.</div>
+  </div>
+  <div class="chart-grid-2">
+    <div class="chart-card">
+      <h3>Elbow Curve — Inertia vs K</h3>
+      <p>The elbow where marginal gain drops suggests optimal K. Orange dashed line marks the selected value.</p>
+      <div id="chart-elbow" style="height:300px"></div>
+    </div>
+    <div class="chart-card">
+      <h3>Silhouette Score vs K</h3>
+      <p>Silhouette measures how well each point fits its cluster. Peak score = optimal K. Green bar = selected K.</p>
+      <div id="chart-silhouette" style="height:300px"></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>PCA 2D Projection — All Customers</h3>
+    <p>PCA reduces 3D RFM to 2D preserving <span id="pca-var">~96%</span> of variance. All 2,000 sampled customers shown at once — no zoom needed.</p>
+    <div id="chart-pca2d" style="height:420px"></div>
+  </div>
+  <div class="chart-card">
+    <h3>PCA 3D Projection — Rotate to Explore</h3>
+    <p>Drag to rotate, scroll to zoom. Three dimensions reveal cluster depth not visible in 2D.</p>
+    <div id="chart-pca3d" style="height:480px"></div>
+  </div>
+</div>
+
+<!-- ══ STRATEGY ══ -->
+<div class="page" id="page-recommendations">
+  <div class="section-header">
+    <div class="section-tag">Step 7 of 7</div>
+    <div class="section-title">Business Strategy & Recommendations</div>
+    <div class="section-desc">Concrete, actionable plays per segment — what should the company actually do?</div>
+  </div>
+  <div class="rec-grid" id="rec-grid"></div>
+</div>
+
+<!-- ══ EXEC SUMMARY ══ -->
+<div class="page" id="page-exec">
+  <div class="section-header">
+    <div class="section-tag">For the CMO / Leadership</div>
+    <div class="section-title">Executive Summary</div>
+    <div class="section-desc">One page. The insight, the implication, the ask. Written for decision-makers.</div>
+  </div>
+  <div id="exec-content"></div>
+</div>
+
+<!-- ══ METHODOLOGY ══ -->
+<div class="page" id="page-methodology">
+  <div class="section-header">
+    <div class="section-tag">Technical Documentation</div>
+    <div class="section-title">Methodology</div>
+    <div class="section-desc">Every decision — what was used, why it was used, and what the alternative was.</div>
+  </div>
+  <div class="method-steps">
+    <div class="method-step"><div class="step-num">1</div><div class="step-body"><h4>Data Collection & Exploration <span class="step-badge">Pandas · NumPy</span></h4><p>Online Retail II dataset — 97,064 rows, ~4,000 customers, 10 countries, 12-month period (Dec 2010–Dec 2011). Initial EDA revealed right-skewed distributions in Frequency and Monetary, ~1% missing Customer IDs, and ~2% cancellation invoices. Exploratory histograms confirmed outlier presence requiring transformation.</p></div></div>
+    <div class="method-step"><div class="step-num">2</div><div class="step-body"><h4>Data Cleaning <span class="step-badge">Pandas</span></h4><p>Four-step pipeline: (1) Drop null Customer IDs — cannot be attributed to any customer, biases RFM. (2) Remove cancellation invoices (C prefix) — inflate frequency without revenue. (3) Remove Quantity ≤ 0 or Price ≤ 0 — data entry errors. (4) Drop exact duplicates. Every step logged with before/after row counts.</p></div></div>
+    <div class="method-step"><div class="step-num">3</div><div class="step-body"><h4>RFM Feature Engineering <span class="step-badge">Pandas · GroupBy</span></h4><p>Snapshot date = max(InvoiceDate) + 1 day. Recency = days since last purchase (lower = better). Frequency = unique invoices. Monetary = total spend. AOV = Monetary ÷ Frequency. Purchase span added for cohort context. All computed at customer-level via GroupBy aggregations.</p></div></div>
+    <div class="method-step"><div class="step-num">4</div><div class="step-body"><h4>Feature Scaling <span class="step-badge">Log1p · StandardScaler</span></h4><p>Monetary and Frequency are heavily right-skewed. Log1p compresses the tail — prevents VIP outliers from dominating Euclidean distances in K-Means. After log transform, StandardScaler centres and scales to unit variance. Both steps are essential for distance-based clustering.</p></div></div>
+    <div class="method-step"><div class="step-num">5</div><div class="step-body"><h4>Optimal K Selection <span class="step-badge">Elbow · Silhouette · Davies-Bouldin</span></h4><p>Three methods in parallel. Elbow (Inertia) shows diminishing returns. Silhouette Score (−1 to +1) measures cohesion vs separation — primary criterion. Davies-Bouldin Index (lower = better) as cross-check. Final K = peak Silhouette, cross-validated against elbow shape.</p></div></div>
+    <div class="method-step"><div class="step-num">6</div><div class="step-body"><h4>K-Means Clustering <span class="step-badge">Scikit-learn · n_init=10</span></h4><p>n_init=10 (best of 10 random restarts), random_state=42. Chosen over DBSCAN (too many noise points) and Hierarchical (expensive at 4K customers). RFM clusters are expected to be spherical and compact — K-Means assumptions hold.</p></div></div>
+    <div class="method-step"><div class="step-num">7</div><div class="step-body"><h4>PCA Dimensionality Reduction <span class="step-badge">PCA · 3 components</span></h4><p>PC1 ≈ 82% variance (Monetary + Frequency axis). PC2 ≈ 14% (Recency axis). Together 96% — virtually lossless. Enables 2D and 3D visualisation without meaningful information loss. UMAP considered but PCA is more interpretable for 3-feature input.</p></div></div>
+    <div class="method-step"><div class="step-num">8</div><div class="step-body"><h4>Segment Naming & Business Interpretation <span class="step-badge">RFM Quartile Scoring</span></h4><p>Labels via RFM quartile thresholds. Champion = Recency ≤ median AND Frequency ≥ 75th pct AND Monetary ≥ 75th pct. Industry-standard nomenclature. Each segment receives CLV outlook, risk rating, and 4 actionable business recommendations with estimated financial impact.</p></div></div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  CURSOR
+// ══════════════════════════════════════════════════
+const DOT = document.getElementById('cursor-dot');
+const RING= document.getElementById('cursor-ring');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;DOT.style.left=mx+'px';DOT.style.top=my+'px';});
+(function loop(){rx+=(mx-rx)*.16;ry+=(my-ry)*.16;RING.style.left=rx+'px';RING.style.top=ry+'px';requestAnimationFrame(loop);})();
+document.addEventListener('mouseover',e=>{if(e.target.closest('button,a,.seg-card,.kpi,.di-card'))document.body.classList.add('cur-hover');});
+document.addEventListener('mouseout', e=>{if(e.target.closest('button,a,.seg-card,.kpi,.di-card'))document.body.classList.remove('cur-hover');});
+
+// ══════════════════════════════════════════════════
+//  THEME
+// ══════════════════════════════════════════════════
+let isDark = true;
+function toggleTheme(){
+  isDark = !isDark;
+  document.documentElement.setAttribute('data-theme', isDark?'dark':'light');
+  document.getElementById('theme-btn').textContent = isDark ? '🌙' : '☀️';
+  if(Object.keys(G).length) rerenderCharts();
+}
+
+function themeColors(){
+  return { grid: isDark?'#1e2d45':'#e2e8f0', font: isDark?'#94a3b8':'#64748b', bg:'rgba(0,0,0,0)' };
+}
+
+function baseLayout(extra){
+  const tc=themeColors();
+  return Object.assign({
+    paper_bgcolor:tc.bg, plot_bgcolor:tc.bg,
+    font:{color:tc.font,family:'Inter,system-ui',size:12},
+    xaxis:{gridcolor:tc.grid,zerolinecolor:tc.grid,linecolor:tc.grid},
+    yaxis:{gridcolor:tc.grid,zerolinecolor:tc.grid,linecolor:tc.grid},
+    margin:{t:20,r:20,b:44,l:58},
+    legend:{bgcolor:'rgba(0,0,0,0)',font:{color:tc.font,size:11}},
+    hoverlabel:{bgcolor:isDark?'#1e293b':'#fff',bordercolor:'#3b82f6',font:{color:isDark?'#e2e8f0':'#0f172a'}},
+  }, extra||{});
+}
+
+// ══════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════
+let G={};
+const SEG_ORDER=["Champions","Loyal Customers","Promising","At-Risk","Needs Attention","Hibernating"];
+let curBoxMetric='Recency', curDistMetric='Recency';
+
+function showPage(name,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function fmt(n){
+  if(n>=1e6) return (n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return Math.round(n).toLocaleString();
+}
+function mean(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
+function pearson(x,y){
+  const mx=mean(x),my=mean(y);
+  const n=x.reduce((s,xi,i)=>s+(xi-mx)*(y[i]-my),0);
+  const d=Math.sqrt(x.reduce((s,xi)=>s+(xi-mx)**2,0))*Math.sqrt(y.reduce((s,yi)=>s+(yi-my)**2,0));
+  return d===0?0:n/d;
+}
+
+// ══════════════════════════════════════════════════
+//  LOAD
+// ══════════════════════════════════════════════════
+async function loadData(){
+  const r=await fetch('/api/data');
+  G=await r.json();
+  document.getElementById('loader').style.display='none';
+  renderAll();
+}
+function renderAll(){
+  renderDataInfo(); renderKPIs();
+  renderOverview(); renderCleaning();
+  renderSegCards(); renderSegCharts();
+  renderClusterCharts();
+  renderRecs(); renderExec();
+}
+function rerenderCharts(){
+  renderOverview(); renderCleaning();
+  renderSegCharts(); renderClusterCharts();
+  renderDistChart(curDistMetric);
+  renderBoxChart(curBoxMetric);
+}
+
+// ══════════════════════════════════════════════════
+//  DATA INFO
+// ══════════════════════════════════════════════════
+function renderDataInfo(){
+  const a=G.audit;
+  const cards=[
+    {icon:'🗂️',label:'Source',       val:'Online Retail II',              sub:'Modelled on UCI ML Repository — real e-commerce structure'},
+    {icon:'📅',label:'Time Period',   val:a.date_min+' → '+a.date_max,     sub:'12-month transactional window'},
+    {icon:'🌍',label:'Geography',     val:a.countries+' Countries',        sub:'UK 85%, Germany, France, EIRE & more'},
+    {icon:'📦',label:'Products',      val:'30 SKUs',                       sub:'Home décor, kitchenware, gifts & accessories'},
+    {icon:'🧾',label:'Raw Rows',      val:fmt(a.raw_rows)+' rows',         sub:fmt(a.raw_customers)+' unique customers initially'},
+    {icon:'✅',label:'After Cleaning',val:fmt(a.clean_rows)+' rows',       sub:fmt(a.clean_customers)+' customers · £'+fmt(a.total_revenue)+' revenue'},
+  ];
+  document.getElementById('data-info-grid').innerHTML=cards.map(c=>`
+    <div class="di-card"><div class="di-icon">${c.icon}</div>
+    <div><div class="di-label">${c.label}</div><div class="di-val">${c.val}</div><div class="di-sub">${c.sub}</div></div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  KPIs
+// ══════════════════════════════════════════════════
+function renderKPIs(){
+  const a=G.audit;
+  const ch=G.seg_summary.find(s=>s.SegmentName==='Champions')||{};
+  const ar=G.seg_summary.find(s=>s.SegmentName==='At-Risk')||{};
+  const items=[
+    {label:'Total Customers',value:fmt(a.clean_customers),   sub:'after cleaning',              color:'#3b82f6'},
+    {label:'Total Revenue',  value:'£'+fmt(a.total_revenue), sub:'12-month period',             color:'#22c55e'},
+    {label:'Transactions',   value:fmt(a.clean_rows),        sub:'clean invoices',              color:'#a78bfa'},
+    {label:'Countries',      value:a.countries,              sub:'geographic markets',          color:'#f59e0b'},
+    {label:'Champions',      value:ch.CustomerCount||'—',    sub:(ch.RevenueShare||'—')+'% of revenue', color:'#22c55e'},
+    {label:'At-Risk',        value:ar.CustomerCount||'—',    sub:'need reactivation',           color:'#ef4444'},
+    {label:'Period',         value:'12mo',                   sub:a.date_min+' → '+a.date_max,   color:'#14b8a6'},
+    {label:'Segments',       value:G.seg_summary.length,     sub:'distinct behaviours',         color:'#f59e0b'},
+  ];
+  document.getElementById('kpi-grid').innerHTML=items.map(k=>`
+    <div class="kpi"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div><div class="kpi-accent" style="background:${k.color}"></div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  OVERVIEW CHARTS
+// ══════════════════════════════════════════════════
+function renderOverview(){
+  const ss=G.seg_summary;
+  const L=baseLayout();
+  const ordered=SEG_ORDER.map(n=>ss.find(s=>s.SegmentName===n)).filter(Boolean);
+  const colors=ordered.map(s=>(G.seg_meta[s.SegmentName]||{}).color||'#888');
+
+  // Revenue bar
+  Plotly.react('chart-rev-seg',[{
+    type:'bar', orientation:'h',
+    x:ordered.map(s=>s.TotalRevenue), y:ordered.map(s=>s.SegmentName),
+    marker:{color:colors},
+    text:ordered.map(s=>'£'+fmt(s.TotalRevenue)+' ('+s.RevenueShare+'%)'),
+    textposition:'outside', textfont:{size:11},
+    hovertemplate:'<b>%{y}</b><br>£%{x:,.0f}<extra></extra>',
+  }],{...L,xaxis:{...L.xaxis,tickprefix:'£'},margin:{t:10,r:140,b:40,l:148}},{responsive:true,displayModeBar:false});
+
+  // Customer donut
+  Plotly.react('chart-cust-dist',[{
+    type:'pie', hole:.54,
+    labels:ordered.map(s=>s.SegmentName), values:ordered.map(s=>s.CustomerCount),
+    marker:{colors}, textinfo:'label+percent', textfont:{size:11},
+    hovertemplate:'<b>%{label}</b><br>%{value} customers (%{percent})<extra></extra>',
+  }],{...L,margin:{t:10,r:10,b:10,l:10},showlegend:false},{responsive:true,displayModeBar:false});
+
+  // Monthly trend — autorange, all data visible
+  const mr=G.monthly_rev;
+  Plotly.react('chart-monthly',[{
+    type:'scatter', mode:'lines+markers',
+    x:mr.map(r=>r.Month), y:mr.map(r=>r.Revenue),
+    fill:'tozeroy', fillcolor:'rgba(59,130,246,.09)',
+    line:{color:'#3b82f6',width:2.5},
+    marker:{color:'#3b82f6',size:7},
+    hovertemplate:'<b>%{x}</b><br>£%{y:,.0f}<extra></extra>',
+  }],{...L,
+    xaxis:{...L.xaxis,autorange:true},
+    yaxis:{...L.yaxis,tickprefix:'£',rangemode:'tozero'},
+    margin:{t:10,r:20,b:50,l:72},
+  },{responsive:true,displayModeBar:false});
+
+  // ─── PARETO (FIXED) ───
+  const sorted=[...ordered].sort((a,b)=>b.TotalRevenue-a.TotalRevenue);
+  const totalRev=sorted.reduce((s,r)=>s+r.TotalRevenue,0);
+  let cum=0;
+  const cumPct=sorted.map(s=>{cum+=s.TotalRevenue; return parseFloat((cum/totalRev*100).toFixed(1));});
+  const maxBarH=Math.max(...sorted.map(s=>s.RevenueShare))*1.4;
+  Plotly.react('chart-pareto',[
+    {
+      type:'bar', name:'Revenue % (segment)', yaxis:'y',
+      x:sorted.map(s=>s.SegmentName),
+      y:sorted.map(s=>s.RevenueShare),
+      marker:{color:sorted.map(s=>(G.seg_meta[s.SegmentName]||{}).color||'#888'), opacity:.9},
+      text:sorted.map(s=>s.RevenueShare+'%'), textposition:'outside', textfont:{size:11},
+      hovertemplate:'<b>%{x}</b><br>Revenue share: %{y}%<extra></extra>',
+    },
+    {
+      type:'scatter', mode:'lines+markers', name:'Cumulative Revenue %', yaxis:'y2',
+      x:sorted.map(s=>s.SegmentName), y:cumPct,
+      line:{color:'#f59e0b',width:2.5},
+      marker:{color:'#f59e0b',size:9,symbol:'circle'},
+      hovertemplate:'Cumulative: %{y}%<extra></extra>',
+    },
+  ],{...L,
+    xaxis:{...L.xaxis,tickangle:-15},
+    yaxis:{...L.yaxis,title:'Revenue Share %',ticksuffix:'%',range:[0,maxBarH]},
+    yaxis2:{title:'Cumulative %',overlaying:'y',side:'right',ticksuffix:'%',range:[0,110],showgrid:false,color:themeColors().font},
+    margin:{t:20,r:68,b:88,l:60},
+    legend:{...L.legend,orientation:'h',x:0,y:-0.3},
+  },{responsive:true,displayModeBar:false});
+
+  // Country bar
+  const cr=G.country_rev;
+  Plotly.react('chart-country',[{
+    type:'bar', orientation:'h',
+    x:cr.map(c=>c.Revenue).reverse(), y:cr.map(c=>c.Country).reverse(),
+    marker:{color:cr.map((_,i)=>i===cr.length-1?'#3b82f6':'rgba(59,130,246,.35)').reverse()},
+    text:cr.map(c=>'£'+fmt(c.Revenue)).reverse(), textposition:'outside', textfont:{size:11},
+    hovertemplate:'<b>%{y}</b><br>£%{x:,.0f}<extra></extra>',
+  }],{...L,xaxis:{...L.xaxis,tickprefix:'£'},margin:{t:10,r:90,b:40,l:135}},{responsive:true,displayModeBar:false});
+}
+
+// ══════════════════════════════════════════════════
+//  CLEANING
+// ══════════════════════════════════════════════════
+function renderCleaning(){
+  const a=G.audit;
+  const steps=[
+    {step:'Raw Data Loaded',           rows:a.raw_rows,                                                        dropped:'—',                    reason:'Initial dataset loaded from CSV'},
+    {step:'Remove null Customer ID',   rows:a.raw_rows-a.dropped_missing_cid,                                  dropped:a.dropped_missing_cid,   reason:'No Customer ID = cannot be attributed to any customer'},
+    {step:'Remove cancellations',      rows:a.raw_rows-a.dropped_missing_cid-a.dropped_cancellations,          dropped:a.dropped_cancellations, reason:'Invoice prefix C = returns/cancellations, inflate frequency without revenue'},
+    {step:'Remove invalid qty/price',  rows:a.raw_rows-a.dropped_missing_cid-a.dropped_cancellations-a.dropped_bad_qty_price, dropped:a.dropped_bad_qty_price, reason:'Quantity ≤ 0 or Price ≤ 0 = data entry errors or test records'},
+    {step:'Remove duplicates',         rows:a.clean_rows+a.dropped_duplicates,                                 dropped:a.dropped_duplicates,    reason:'Exact duplicate rows — likely system double-recording'},
+    {step:'✅ Final Clean Dataset',    rows:a.clean_rows,                                                      dropped:a.raw_rows-a.clean_rows, reason:a.clean_rows.toLocaleString()+' rows · '+a.clean_customers.toLocaleString()+' customers · analysis ready'},
+  ];
+  document.getElementById('cleaning-table').innerHTML=`<table>
+    <thead><tr><th>Step</th><th>Rows Remaining</th><th>Dropped</th><th>Rationale</th></tr></thead>
+    <tbody>${steps.map(s=>`<tr>
+      <td style="font-weight:600">${s.step}</td>
+      <td style="color:var(--green);font-family:monospace">${s.rows.toLocaleString()}</td>
+      <td><span class="badge" style="background:${s.dropped==='—'?'rgba(59,130,246,.12)':'rgba(239,68,68,.1)'};color:${s.dropped==='—'?'var(--accent)':'#fca5a5'}">${typeof s.dropped==='number'?'-'+s.dropped.toLocaleString():s.dropped}</span></td>
+      <td style="color:var(--muted)">${s.reason}</td>
+    </tr>`).join('')}</tbody></table>`;
+
+  const L=baseLayout();
+  const tc=themeColors();
+  Plotly.react('chart-funnel',[{
+    type:'funnel', y:steps.map(s=>s.step), x:steps.map(s=>s.rows),
+    textinfo:'value+percent initial',
+    marker:{color:['#3b82f6','#60a5fa','#93c5fd','#bfdbfe','#dbeafe','#22c55e']},
+    connector:{line:{color:tc.grid}},
+    hovertemplate:'<b>%{y}</b><br>%{x:,} rows<extra></extra>',
+  }],{...L,margin:{t:20,r:20,b:20,l:210}},{responsive:true,displayModeBar:false});
+
+  renderDistChart('Recency');
+  renderCorrMatrix();
+}
+
+function renderDistChart(metric){
+  curDistMetric=metric;
+  const vals=G.rfm_sample.map(d=>+d[metric]);
+  const cmap={Recency:'#f59e0b',Frequency:'#22c55e',Monetary:'#3b82f6'};
+  const L=baseLayout({margin:{t:10,r:20,b:44,l:58}});
+  Plotly.react('chart-rfm-dist',[{
+    type:'histogram', x:vals, nbinsx:50,
+    marker:{color:cmap[metric],opacity:.85},
+    hovertemplate:metric+': %{x}<br>Count: %{y}<extra></extra>',
+  }],{...L,
+    xaxis:{...L.xaxis,title:metric+(metric==='Monetary'?' (£)':metric==='Recency'?' (days)':' (orders)')},
+    yaxis:{...L.yaxis,title:'Number of Customers'},
+    showlegend:false,
+  },{responsive:true,displayModeBar:false});
+}
+
+function switchDist(metric,btn){
+  document.querySelectorAll('#page-cleaning .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDistChart(metric);
+}
+
+function renderCorrMatrix(){
+  const rfm=G.rfm_sample;
+  const feats=['Recency','Frequency','Monetary','AOV'];
+  const tc=themeColors();
+  const matrix=feats.map(f1=>feats.map(f2=>{
+    const v1=rfm.map(d=>+d[f1]), v2=rfm.map(d=>+d[f2]);
+    return parseFloat(pearson(v1,v2).toFixed(3));
+  }));
+  const L=baseLayout({margin:{t:20,r:20,b:60,l:80}});
+  Plotly.react('chart-corr',[{
+    type:'heatmap', x:feats, y:feats, z:matrix,
+    colorscale:[[0,'#ef4444'],[0.5,isDark?'#0f172a':'#f1f5f9'],[1,'#3b82f6']],
+    zmin:-1, zmax:1,
+    text:matrix.map(r=>r.map(v=>v.toFixed(2))),
+    texttemplate:'%{text}', textfont:{size:13,color:'#fff'},
+    hovertemplate:'%{x} × %{y}<br>r = %{z:.3f}<extra></extra>',
+    colorbar:{tickfont:{color:tc.font},title:{text:'r',font:{color:tc.font}}},
+  }],{...L},{responsive:true,displayModeBar:false});
+}
+
+// ══════════════════════════════════════════════════
+//  SEGMENT CARDS
+// ══════════════════════════════════════════════════
+function renderSegCards(){
+  const ss=G.seg_summary, meta=G.seg_meta;
+  const maxR=Math.max(...ss.map(s=>s.TotalRevenue));
+  const maxF=Math.max(...ss.map(s=>s.AvgFrequency));
+  const maxM=Math.max(...ss.map(s=>s.AvgMonetary));
+  const ordered=SEG_ORDER.map(n=>ss.find(s=>s.SegmentName===n)).filter(Boolean);
+  document.getElementById('seg-grid').innerHTML=ordered.map(seg=>{
+    const m=meta[seg.SegmentName]||{};
+    const rP=(seg.TotalRevenue/maxR*100).toFixed(0);
+    const fP=(seg.AvgFrequency/maxF*100).toFixed(0);
+    const mP=(seg.AvgMonetary/maxM*100).toFixed(0);
+    return `<div class="seg-card">
+      <div class="seg-stripe" style="background:${m.color||'#888'}"></div>
+      <div class="seg-top"><span class="seg-emoji">${m.emoji||'📊'}</span>
+        <div><div class="seg-name">${seg.SegmentName}</div>
+          <span class="seg-badge" style="background:${m.color||'#888'}22;color:${m.color||'#888'};border:1px solid ${m.color||'#888'}44">${m.value||''}</span>
+        </div>
+      </div>
+      <div class="seg-stats">
+        <div class="seg-stat"><div class="seg-stat-lbl">Customers</div><div class="seg-stat-val" style="color:${m.color||'#888'}">${seg.CustomerCount}</div></div>
+        <div class="seg-stat"><div class="seg-stat-lbl">Avg Spend</div><div class="seg-stat-val" style="color:${m.color||'#888'}">£${Math.round(seg.AvgMonetary).toLocaleString()}</div></div>
+        <div class="seg-stat"><div class="seg-stat-lbl">Rev Share</div><div class="seg-stat-val" style="color:${m.color||'#888'}">${seg.RevenueShare}%</div></div>
+      </div>
+      <div class="seg-bar"><div class="seg-bar-lbl">Revenue</div><div class="seg-bar-track"><div class="seg-bar-fill" style="width:${rP}%;background:${m.color||'#888'}"></div></div><div class="seg-bar-val">${rP}%</div></div>
+      <div class="seg-bar"><div class="seg-bar-lbl">Frequency</div><div class="seg-bar-track"><div class="seg-bar-fill" style="width:${fP}%;background:${m.color||'#888'}99"></div></div><div class="seg-bar-val">${Math.round(seg.AvgFrequency)}x</div></div>
+      <div class="seg-bar"><div class="seg-bar-lbl">Recency</div><div class="seg-bar-track"><div class="seg-bar-fill" style="width:${100-Math.min(seg.AvgRecency/360*100,100)}%;background:${m.color||'#888'}55"></div></div><div class="seg-bar-val">${Math.round(seg.AvgRecency)}d</div></div>
+      <div class="seg-desc">${m.description||''}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  SEGMENT CHARTS
+// ══════════════════════════════════════════════════
+function renderSegCharts(){
+  const rfm=G.rfm_sample, meta=G.seg_meta;
+  const L=baseLayout();
+  const tc=themeColors();
+
+  // Group by segment
+  const grp={};
+  rfm.forEach(d=>{if(!grp[d.SegmentName])grp[d.SegmentName]=[];grp[d.SegmentName].push(d);});
+
+  // Radar
+  Plotly.react('chart-radar',G.seg_stats.map(s=>({
+    type:'scatterpolar', fill:'toself', name:s.segment,
+    r:[s.recency,s.frequency,s.monetary,s.aov,s.recency],
+    theta:['Recency Score','Frequency','Monetary','AOV','Recency Score'],
+    line:{color:s.color,width:2}, fillcolor:s.color+'1e',
+    hovertemplate:`<b>${s.segment}</b><br>%{theta}: %{r:.1f}<extra></extra>`,
+  })),{...L,
+    polar:{bgcolor:'rgba(0,0,0,0)',radialaxis:{visible:true,gridcolor:tc.grid,color:tc.font,range:[0,110]},angularaxis:{gridcolor:tc.grid,color:tc.font}},
+    margin:{t:30,r:110,b:30,l:110},legend:{...L.legend,x:1.05,y:1},
+  },{responsive:true,displayModeBar:false});
+
+  // 2D scatter
+  Plotly.react('chart-scatter2d',SEG_ORDER.filter(n=>grp[n]).map(seg=>({
+    type:'scatter', mode:'markers', name:seg,
+    x:grp[seg].map(d=>d.Recency), y:grp[seg].map(d=>d.Monetary),
+    marker:{color:(meta[seg]||{}).color||'#888',size:5,opacity:.65},
+    hovertemplate:`<b>${seg}</b><br>Recency: %{x}d<br>£%{y:,.0f}<extra></extra>`,
+  })),{...L,
+    xaxis:{...L.xaxis,title:'Recency (days)',autorange:true},
+    yaxis:{...L.yaxis,title:'Monetary (£)',autorange:true},
+    margin:{t:10,r:20,b:54,l:70},
+  },{responsive:true,displayModeBar:false});
+
+  // Box plots — render initial Recency tab
+  renderBoxChart('Recency');
+}
+
+function renderBoxChart(metric){
+  curBoxMetric=metric;
+  const rfm=G.rfm_sample, meta=G.seg_meta;
+  const L=baseLayout({margin:{t:10,r:20,b:50,l:60}});
+  const grp={};
+  rfm.forEach(d=>{if(!grp[d.SegmentName])grp[d.SegmentName]=[];grp[d.SegmentName].push(d);});
+
+  // Render ALL segments, each as its own box trace
+  const traces=SEG_ORDER.filter(n=>grp[n]).map(seg=>({
+    type:'box', name:seg, boxmean:true,
+    y:grp[seg].map(d=>+d[metric]),
+    marker:{color:(meta[seg]||{}).color||'#888',size:3,opacity:.5},
+    line:{color:(meta[seg]||{}).color||'#888'},
+    fillcolor:((meta[seg]||{}).color||'#888')+'28',
+    hovertemplate:`<b>${seg}</b><br>${metric}: %{y}<extra></extra>`,
+  }));
+
+  Plotly.react('chart-box',traces,{...L,
+    yaxis:{...L.yaxis,title:metric==='Monetary'?'Total Spend (£)':metric==='Recency'?'Days since last purchase':'Number of orders',autorange:true},
+    showlegend:false,
+  },{responsive:true,displayModeBar:false});
+}
+
+function switchBox(metric,btn){
+  document.querySelectorAll('#page-segments .tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderBoxChart(metric);
+}
+
+// ══════════════════════════════════════════════════
+//  CLUSTER CHARTS
+// ══════════════════════════════════════════════════
+function renderClusterCharts(){
+  const ka=G.k_analysis, L=baseLayout(), tc=themeColors();
+
+  // Elbow
+  Plotly.react('chart-elbow',[{
+    type:'scatter', mode:'lines+markers',
+    x:ka.map(r=>r.k), y:ka.map(r=>r.inertia),
+    line:{color:'#3b82f6',width:2.5},
+    marker:{color:ka.map(r=>r.k===G.best_k?'#f59e0b':'#3b82f6'),size:ka.map(r=>r.k===G.best_k?11:7)},
+    hovertemplate:'K=%{x}<br>Inertia: %{y:,.0f}<extra></extra>',
+  }],{...L,
+    xaxis:{...L.xaxis,title:'K',dtick:1},
+    yaxis:{...L.yaxis,title:'Inertia'},
+    shapes:[{type:'line',x0:G.best_k,x1:G.best_k,y0:0,y1:1,yref:'paper',line:{color:'#f59e0b',width:1.5,dash:'dot'}}],
+    annotations:[{x:G.best_k,y:1,yref:'paper',text:`Optimal K=${G.best_k}`,showarrow:false,yanchor:'bottom',font:{color:'#f59e0b',size:11}}],
+    margin:{t:36,r:20,b:50,l:70},
+  },{responsive:true,displayModeBar:false});
+
+  // Silhouette
+  Plotly.react('chart-silhouette',[{
+    type:'bar', x:ka.map(r=>r.k), y:ka.map(r=>r.silhouette),
+    marker:{color:ka.map(r=>r.k===G.best_k?'#22c55e':'rgba(59,130,246,.3)')},
+    text:ka.map(r=>r.silhouette.toFixed(3)), textposition:'outside', textfont:{size:10},
+    hovertemplate:'K=%{x}<br>Silhouette: %{y:.4f}<extra></extra>',
+  }],{...L,
+    xaxis:{...L.xaxis,title:'K',dtick:1},
+    yaxis:{...L.yaxis,title:'Silhouette Score'},
+    margin:{t:36,r:20,b:50,l:66},
+  },{responsive:true,displayModeBar:false});
+
+  document.getElementById('pca-var').textContent=`~${G.explained_var[0]+G.explained_var[1]}%`;
+
+  const rfm=G.rfm_sample, meta=G.seg_meta;
+  const grp={};
+  rfm.forEach(d=>{if(!grp[d.SegmentName])grp[d.SegmentName]=[];grp[d.SegmentName].push(d);});
+
+  // PCA 2D — autorange, all data
+  Plotly.react('chart-pca2d',SEG_ORDER.filter(n=>grp[n]).map(seg=>({
+    type:'scatter', mode:'markers', name:seg,
+    x:grp[seg].map(d=>d.PCA1), y:grp[seg].map(d=>d.PCA2),
+    marker:{color:(meta[seg]||{}).color||'#888',size:5,opacity:.65},
+    hovertemplate:`<b>${seg}</b><br>PC1: %{x:.2f}<br>PC2: %{y:.2f}<extra></extra>`,
+  })),{...L,
+    xaxis:{...L.xaxis,title:`PC1 (${G.explained_var[0]}% variance)`,autorange:true},
+    yaxis:{...L.yaxis,title:`PC2 (${G.explained_var[1]}% variance)`,autorange:true},
+    margin:{t:10,r:20,b:54,l:66},
+  },{responsive:true,displayModeBar:false});
+
+  // PCA 3D
+  Plotly.react('chart-pca3d',SEG_ORDER.filter(n=>grp[n]).map(seg=>({
+    type:'scatter3d', mode:'markers', name:seg,
+    x:grp[seg].map(d=>d.PCA1), y:grp[seg].map(d=>d.PCA2), z:grp[seg].map(d=>d.PCA3),
+    marker:{color:(meta[seg]||{}).color||'#888',size:3,opacity:.7},
+    hovertemplate:`<b>${seg}</b><extra></extra>`,
+  })),{...L,
+    scene:{bgcolor:'rgba(0,0,0,0)',
+      xaxis:{gridcolor:tc.grid,color:tc.font,title:`PC1 (${G.explained_var[0]}%)`},
+      yaxis:{gridcolor:tc.grid,color:tc.font,title:`PC2 (${G.explained_var[1]}%)`},
+      zaxis:{gridcolor:tc.grid,color:tc.font,title:`PC3 (${G.explained_var[2]}%)`}},
+    margin:{t:20,r:20,b:20,l:20},
+  },{responsive:true,displayModeBar:false});
+}
+
+// ══════════════════════════════════════════════════
+//  RECOMMENDATIONS
+// ══════════════════════════════════════════════════
+function renderRecs(){
+  const meta=G.seg_meta, ss=G.seg_summary;
+  const riskC={'Low':'#22c55e','Low–Medium':'#86efac','Medium':'#f59e0b','High':'#ef4444','Very High':'#dc2626','Uncertain':'#94a3b8'};
+  document.getElementById('rec-grid').innerHTML=SEG_ORDER.map(name=>{
+    const m=meta[name]||{}, seg=ss.find(s=>s.SegmentName===name)||{};
+    const rc=riskC[m.risk]||'#888';
+    const prods=G.top_products.filter(p=>p.SegmentName===name).slice(0,5);
+    return `<div class="rec-card" style="border-left:4px solid ${m.color||'#888'}">
+      <div class="rec-hdr">
+        <span style="font-size:24px">${m.emoji||'📊'}</span>
+        <div>
+          <div class="rec-title" style="color:${m.color||'#888'}">${name}</div>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">
+            <span class="rec-risk" style="background:${rc}22;color:${rc};border:1px solid ${rc}44">Risk: ${m.risk||'—'}</span>
+            <span style="font-size:12px;color:var(--muted)">${seg.CustomerCount||'—'} customers · £${Math.round(seg.AvgMonetary||0).toLocaleString()} avg · ${seg.RevenueShare||'—'}% revenue</span>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.7">${m.description||''}</div>
+      <div style="font-size:12px;color:var(--muted);font-style:italic;margin-bottom:10px">💰 CLV Outlook: ${m.clv_outlook||''}</div>
+      <div style="font-size:11px;font-family:monospace;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Recommended Actions</div>
+      <ul class="action-list">${(m.actions||[]).map(a=>`<li><span style="color:${m.color||'#888'};flex-shrink:0">▸</span>${a}</li>`).join('')}</ul>
+      ${prods.length?`<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="font-size:11px;font-family:monospace;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Top Products</div>
+        ${prods.map(p=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="color:var(--muted)">${p.Description}</span><span style="color:${m.color||'#888'};font-family:monospace">£${Math.round(p.LineTotal).toLocaleString()}</span></div>`).join('')}
+      </div>`:''}
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+//  EXEC SUMMARY
+// ══════════════════════════════════════════════════
+function renderExec(){
+  const a=G.audit, ss=G.seg_summary;
+  const ch=ss.find(s=>s.SegmentName==='Champions')||{};
+  const ar=ss.find(s=>s.SegmentName==='At-Risk')||{};
+  const hib=ss.find(s=>s.SegmentName==='Hibernating')||{};
+  const loy=ss.find(s=>s.SegmentName==='Loyal Customers')||{};
+  const topRev=((ch.RevenueShare||0)+(loy.RevenueShare||0)).toFixed(0);
+  const topCust=(((ch.CustomerCount||0)+(loy.CustomerCount||0))/a.clean_customers*100).toFixed(0);
+  document.getElementById('exec-content').innerHTML=`
+  <div class="exec-card">
+    <h2>Customer Intelligence Report — Online Retail</h2>
+    <div class="exec-tag">Prepared by Poorani M · RFM + K-Means + PCA · ${a.date_min} → ${a.date_max}</div>
+    <div class="exec-findings">
+      <div class="exec-finding"><div class="exec-num" style="color:#22c55e">${topCust}%</div><div class="exec-text">of customers (Champions + Loyal) generate <strong>${topRev}%</strong> of total revenue</div></div>
+      <div class="exec-finding"><div class="exec-num" style="color:#f59e0b">${ar.CustomerCount||'—'}</div><div class="exec-text">At-Risk customers holding £${Math.round(ar.TotalRevenue||0).toLocaleString()} revenue — 30% recoverable with win-back campaign</div></div>
+      <div class="exec-finding"><div class="exec-num" style="color:#94a3b8">${hib.CustomerCount||'—'}</div><div class="exec-text">Hibernating customers — low-cost reactivation could yield 5–10% conversion</div></div>
+      <div class="exec-finding"><div class="exec-num" style="color:#3b82f6">£${fmt(a.total_revenue)}</div><div class="exec-text">Total revenue across ${a.clean_customers.toLocaleString()} customers in ${a.countries} countries</div></div>
+    </div>
+    <div class="exec-sec"><h3>The Core Finding</h3><p>A Pareto pattern holds: Champions and Loyal Customers account for the majority of revenue despite being a small fraction of the customer base. They buy frequently, spend more per order, and have purchased recently. They are the growth engine and must be protected, rewarded, and upsold.</p><p style="margin-top:10px">Meanwhile At-Risk customers were previously valuable but have become inactive. They already know the brand — no expensive acquisition needed. A targeted 30-day reactivation campaign at 25% conversion recovers an estimated £${Math.round((ar.TotalRevenue||0)*.25).toLocaleString()} in annual revenue.</p></div>
+    <div class="exec-sec"><h3>Three Priority Actions</h3>
+      <div class="pri-grid">
+        <div class="pri-item" style="border-color:#22c55e"><h4 style="color:#22c55e">🏆 Protect the Champions</h4><p>Launch VIP tier with exclusive benefits. ${ch.CustomerCount||'—'} customers average £${Math.round(ch.AvgMonetary||0).toLocaleString()}/year. A 10% spend increase is high ROI.</p></div>
+        <div class="pri-item" style="border-color:#f59e0b"><h4 style="color:#f59e0b">⚠️ Win Back At-Risk</h4><p>Personalised email to ${ar.CustomerCount||'—'} At-Risk customers — "we miss you + 15% off". At 25% reactivation = £${Math.round((ar.TotalRevenue||0)*.25).toLocaleString()} recovered.</p></div>
+        <div class="pri-item" style="border-color:#a78bfa"><h4 style="color:#a78bfa">🌱 Convert the Promising</h4><p>Recent but infrequent. 30-day onboarding campaign with repeat-purchase incentive can double frequency at lowest CAC.</p></div>
+      </div>
+    </div>
+    <div class="exec-sec"><h3>Analytical Confidence Note</h3><p>Segments validated using Silhouette Score, Davies-Bouldin Index, and Elbow analysis. PCA projection confirms visual cluster separation. Fully reproducible from source code.</p></div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+loadData();
+</script>
+</body>
+</html>
